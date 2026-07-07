@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>仓库物流视觉盘点系统</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0f1923;
+  color: #e0e6ed;
+  height: 100vh;
+  overflow: hidden;
+}
+.header {
+  background: linear-gradient(135deg, #1a2a3a 0%, #0d1b2a 100%);
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #1e3a5f;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+.header h1 {
+  font-size: 18px; font-weight: 600; letter-spacing: 1px;
+  background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.header .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.header .status-dot.live { background: #00e676; box-shadow: 0 0 8px #00e676; animation: pulse 1.5s infinite; }
+.header .status-dot.dead { background: #ff5252; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.nav-tabs { display: flex; gap: 4px; }
+.nav-tab { padding: 6px 12px; font-size: 12px; font-weight: 500; color: #5a7a9a; background: #0d1b2a; border: 1px solid #1e3a5f; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+.nav-tab.active { color: #4facfe; border-color: #4facfe; background: #0a1a2a; }
+
+.main { display: flex; height: calc(100vh - 50px); }
+.video-panel { flex: 1; display: flex; align-items: center; justify-content: center; background: #0a0f14; position: relative; min-width: 0; }
+.video-container { position: relative; display: inline-block; border: 2px solid #1e3a5f; border-radius: 6px; overflow: hidden; box-shadow: 0 0 30px rgba(0,150,255,0.08); }
+.video-container img { display: block; max-width: 90vw; max-height: calc(100vh - 70px); object-fit: contain; background: #000; }
+.video-container canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+
+.map-panel { flex: 1; display: none; align-items: center; justify-content: center; background: #0a0f14; position: relative; }
+.map-container { position: relative; width: 90%; height: 90%; border: 2px solid #1e3a5f; border-radius: 6px; overflow: hidden; background: #0d1b2a; }
+.map-canvas { width: 100%; height: 100%; cursor: crosshair; }
+
+.info-panel { width: 320px; background: #111d2b; border-left: 1px solid #1e3a5f; padding: 16px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.card { background: #152533; border: 1px solid #1e3a5f; border-radius: 8px; padding: 12px; }
+.card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #5a7a9a; margin-bottom: 8px; font-weight: 500; }
+
+.mode-switch { display: flex; gap: 6px; margin-bottom: 6px; }
+.mode-btn { flex: 1; padding: 10px 4px; text-align: center; font-size: 13px; font-weight: 600; color: #5a7a9a; background: #0d1b2a; border: 1px solid #1e3a5f; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+.mode-btn.active { color: #ffb74d; border-color: #ffb74d; background: #2a1a0a; }
+
+.cat-tabs { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+.cat-tab { padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 500; color: #5a7a9a; background: #0d1b2a; border: 1px solid #1e3a5f; border-radius: 5px; cursor: pointer; transition: all 0.2s; }
+.cat-tab.active { color: #00e676; border-color: #00e676; background: #0a2818; }
+.item-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+.item-btn { padding: 5px 8px; font-size: 11px; border: 1px solid #1e3a5f; border-radius: 4px; background: #0d1b2a; color: #b0c4de; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.item-btn.selected { border-color: #ffb74d; color: #ffb74d; background: #2a1a0a; }
+.item-btn:active { transform: scale(0.95); }
+
+.btn { padding: 10px 18px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; letter-spacing: 0.5px; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: linear-gradient(135deg, #4facfe, #00f2fe); color: #000; width: 100%; }
+.btn-primary:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(79,172,254,0.3); }
+.btn-success { background: linear-gradient(135deg, #00c853, #00e676); color: #000; width: 100%; }
+.btn-success:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(0,230,118,0.3); }
+.btn-danger { background: linear-gradient(135deg, #d50000, #ff1744); color: #fff; width: 100%; }
+.btn-danger:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(255,23,68,0.3); }
+.btn-warning { background: linear-gradient(135deg, #ff9800, #ffb74d); color: #000; width: 100%; }
+.btn-warning:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(255,183,77,0.3); }
+
+.fruit-display { text-align: center; padding: 4px 0; }
+.fruit-name { font-size: 18px; font-weight: 700; color: #ffb74d; }
+.fruit-emoji { font-size: 30px; margin-bottom: 2px; }
+
+.stat-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; border-bottom: 1px solid #1a2d40; }
+.stat-row:last-child { border-bottom: none; }
+.stat-label { color: #5a7a9a; }
+.stat-value { color: #b0c4de; font-weight: 500; font-family: "SF Mono", "Fira Code", monospace; }
+
+.inv-table { width: 100%; font-size: 11px; border-collapse: collapse; margin-top: 6px; }
+.inv-table th, .inv-table td { padding: 4px 6px; text-align: left; border-bottom: 1px solid #1a2d40; }
+.inv-table th { color: #5a7a9a; font-weight: 500; }
+.inv-table td { color: #b0c4de; }
+
+.nav-status { display: flex; gap: 8px; flex-wrap: wrap; }
+.nav-badge { padding: 4px 8px; font-size: 11px; border-radius: 4px; background: #0d1b2a; border: 1px solid #1e3a5f; }
+.nav-badge.active { color: #00e676; border-color: #00e676; }
+.nav-badge.warning { color: #ffb74d; border-color: #ffb74d; }
+.nav-badge.error { color: #ff5252; border-color: #ff5252; }
+
+.target-list { max-height: 120px; overflow-y: auto; }
+.target-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 11px; border-bottom: 1px solid #1a2d40; }
+.target-item .name { color: #b0c4de; }
+.target-item .status { font-size: 10px; padding: 2px 6px; border-radius: 3px; }
+.target-item .status.pending { background: #1e3a5f; color: #5a7a9a; }
+.target-item .status.active { background: #0a2818; color: #00e676; }
+.target-item .status.done { background: #2a1a0a; color: #ffb74d; }
+
+@media (max-width: 768px) {
+  .main { flex-direction: column; }
+  .video-panel, .map-panel { flex: none; height: 40vh; }
+  .video-container img { max-height: 40vh; }
+  .info-panel { width: 100%; flex: 1; padding: 6px; gap: 5px; }
+  .header h1 { font-size: 13px; }
+  .card { padding: 7px; }
+  .mobile-only { display: block !important; }
+  .pc-only { display: none !important; }
+}
+.mobile-only { display: none; }
+.pc-only { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1 id="header-title">📦 仓库物流视觉盘点系统</h1>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div class="nav-tabs">
+      <div class="nav-tab active" data-view="video">📹 视频</div>
+      <div class="nav-tab" data-view="map">🗺️ 地图</div>
+    </div>
+    <div>
+      <span id="conn-dot" class="status-dot dead"></span>
+      <span id="conn-text" style="font-size:12px;color:#5a7a9a">未连接</span>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- 视频面板 -->
+  <div class="video-panel" id="video-panel">
+    <div class="video-container" id="container">
+      <img id="video-img" src="/video_feed" alt="Video Stream">
+      <canvas id="detection-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- 地图面板 -->
+  <div class="map-panel" id="map-panel">
+    <div class="map-container">
+      <canvas class="map-canvas" id="map-canvas"></canvas>
+    </div>
+  </div>
+
+  <div class="info-panel">
+    <!-- 雷达/导航状态 -->
+    <div class="card">
+      <h3>📡 系统状态</h3>
+      <div class="nav-status">
+        <div class="nav-badge" id="lidar-status">雷达: 离线</div>
+        <div class="nav-badge" id="slam-status">SLAM: 就绪</div>
+        <div class="nav-badge" id="nav-status">导航: 空闲</div>
+        <div class="nav-badge" id="yolo-status">YOLO: 就绪</div>
+      </div>
+    </div>
+
+    <!-- 建图控制 -->
+    <div class="card">
+      <h3>🗺️ 建图控制</h3>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-primary" id="btn-start-mapping" onclick="startMapping()">开始建图</button>
+        <button class="btn btn-danger" id="btn-stop-mapping" onclick="stopMapping()" disabled>停止建图</button>
+      </div>
+      <div style="margin-top:8px;">
+        <button class="btn btn-success" id="btn-save-map" onclick="saveMap()" disabled>保存地图</button>
+      </div>
+      <div class="stat-row" style="margin-top:8px;">
+        <span class="stat-label">建图进度</span>
+        <span class="stat-value" id="map-progress">0%</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">扫描点数</span>
+        <span class="stat-value" id="scan-points">0</span>
+      </div>
+    </div>
+
+    <!-- 导航控制 -->
+    <div class="card">
+      <h3>🎯 导航控制</h3>
+      <div class="target-list" id="target-list">
+        <div class="target-item"><span class="name">暂无目标点</span></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <button class="btn btn-primary" id="btn-add-target" onclick="addTarget()">添加目标</button>
+        <button class="btn btn-success" id="btn-start-nav" onclick="startNavigation()" disabled>开始导航</button>
+      </div>
+      <div style="margin-top:8px;">
+        <button class="btn btn-warning" id="btn-stop-nav" onclick="stopNavigation()" disabled>停止导航</button>
+      </div>
+      <div class="stat-row" style="margin-top:8px;">
+        <span class="stat-label">当前位置</span>
+        <span class="stat-value" id="robot-pos">(0.0, 0.0)</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">目标距离</span>
+        <span class="stat-value" id="goal-dist">--</span>
+      </div>
+    </div>
+
+    <!-- 识别结果 -->
+    <div class="card">
+      <h3>📊 自动识别结果</h3>
+      <div class="fruit-display">
+        <div class="fruit-emoji" id="fruit-emoji">❓</div>
+        <div class="fruit-name" id="fruit-name">等待识别...</div>
+      </div>
+      <div class="stat-row"><span class="stat-label">识别模式</span><span class="stat-value" style="color:#00e676;">YOLOv5s 自动</span></div>
+      <div class="stat-row"><span class="stat-label">检测数量</span><span class="stat-value" id="det-count">0</span></div>
+      <div class="stat-row"><span class="stat-label">推理耗时</span><span class="stat-value" id="infer-time">--</span></div>
+    </div>
+
+    <!-- 仓库盘点统计 -->
+    <div class="card" id="inventory-card">
+      <h3>📦 盘点统计 <span style="font-size:10px;color:#3a5a7a;" id="inv-summary"></span></h3>
+      <table class="inv-table">
+        <thead><tr><th>颜色</th><th>标识</th><th>品类</th><th>数量</th></tr></thead>
+        <tbody id="inv-body"></tbody>
+      </table>
+      <div style="margin-top:8px;">
+        <button class="btn btn-warning" onclick="resetInventory()">🔄 导出并重置</button>
+      </div>
+    </div>
+
+    <!-- 环境信息 (仅PC端) -->
+    <div class="card pc-only">
+      <h3>🌤️ 环境信息</h3>
+      <div class="stat-row"><span class="stat-label">日期</span><span class="stat-value" id="wx-date">--</span></div>
+      <div class="stat-row"><span class="stat-label">时间</span><span class="stat-value" id="wx-time">--</span></div>
+      <div class="stat-row"><span class="stat-label">温度</span><span class="stat-value" id="wx-temp">--</span></div>
+      <div class="stat-row"><span class="stat-label">湿度</span><span class="stat-value" id="wx-humidity">--</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 全局状态 =====
+const state = {
+  view: 'video',
+  mapping: false,
+  navigating: false,
+  mapProgress: 0,
+  scanPoints: 0,
+  targets: [],
+  currentPos: { x: 0, y: 0, theta: 0 },
+  detections: [],
+  inventory: []
+};
+
+// ===== 视图切换 =====
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    state.view = tab.dataset.view;
+    document.getElementById('video-panel').style.display = state.view === 'video' ? 'flex' : 'none';
+    document.getElementById('map-panel').style.display = state.view === 'map' ? 'flex' : 'none';
+    if (state.view === 'map') drawMap();
+  });
+});
+
+// ===== 建图控制 =====
+function startMapping() {
+  state.mapping = true;
+  document.getElementById('btn-start-mapping').disabled = true;
+  document.getElementById('btn-stop-mapping').disabled = false;
+  document.getElementById('slam-status').textContent = 'SLAM: 建图中';
+  document.getElementById('slam-status').classList.add('active');
+
+  // 模拟建图进度
+  const interval = setInterval(() => {
+    if (!state.mapping) { clearInterval(interval); return; }
+    state.mapProgress = Math.min(100, state.mapProgress + Math.random() * 2);
+    state.scanPoints += Math.floor(Math.random() * 1000);
+    document.getElementById('map-progress').textContent = state.mapProgress.toFixed(0) + '%';
+    document.getElementById('scan-points').textContent = state.scanPoints.toLocaleString();
+    if (state.view === 'map') drawMap();
+    if (state.mapProgress >= 100) {
+      document.getElementById('btn-save-map').disabled = false;
+      clearInterval(interval);
+    }
+  }, 500);
+
+  fetch('/api/mapping/start', { method: 'POST' }).catch(() => {});
+}
+
+function stopMapping() {
+  state.mapping = false;
+  document.getElementById('btn-start-mapping').disabled = false;
+  document.getElementById('btn-stop-mapping').disabled = true;
+  document.getElementById('btn-save-map').disabled = false;
+  document.getElementById('slam-status').textContent = 'SLAM: 已停止';
+  document.getElementById('slam-status').classList.remove('active');
+  fetch('/api/mapping/stop', { method: 'POST' }).catch(() => {});
+}
+
+function saveMap() {
+  fetch('/api/mapping/save', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        speak('地图已保存');
+        document.getElementById('slam-status').textContent = 'SLAM: 已保存';
+      }
+    }).catch(() => {});
+}
+
+// ===== 导航控制 =====
+function addTarget() {
+  const name = '目标' + (state.targets.length + 1);
+  state.targets.push({
+    name: name,
+    x: (Math.random() * 20 - 10).toFixed(1),
+    y: (Math.random() * 20 - 10).toFixed(1),
+    status: 'pending'
+  });
+  renderTargets();
+  document.getElementById('btn-start-nav').disabled = false;
+}
+
+function renderTargets() {
+  const list = document.getElementById('target-list');
+  if (state.targets.length === 0) {
+    list.innerHTML = '<div class="target-item"><span class="name">暂无目标点</span></div>';
+    return;
+  }
+  list.innerHTML = state.targets.map((t, i) => `
+    <div class="target-item">
+      <span class="name">${t.name} (${t.x}, ${t.y})</span>
+      <span class="status ${t.status}">${t.status === 'pending' ? '待导航' : t.status === 'active' ? '导航中' : '已完成'}</span>
+    </div>
+  `).join('');
+}
+
+function startNavigation() {
+  if (state.targets.length === 0) return;
+  state.navigating = true;
+  document.getElementById('btn-start-nav').disabled = true;
+  document.getElementById('btn-stop-nav').disabled = false;
+  document.getElementById('nav-status').textContent = '导航: 进行中';
+  document.getElementById('nav-status').classList.add('active');
+
+  // 模拟导航过程
+  let currentTarget = 0;
+  state.targets[0].status = 'active';
+  renderTargets();
+
+  const interval = setInterval(() => {
+    if (!state.navigating || currentTarget >= state.targets.length) {
+      clearInterval(interval);
+      return;
+    }
+
+    // 更新机器人位置
+    state.currentPos.x += (Math.random() - 0.5) * 0.5;
+    state.currentPos.y += (Math.random() - 0.5) * 0.5;
+    document.getElementById('robot-pos').textContent =
+      `(${state.currentPos.x.toFixed(1)}, ${state.currentPos.y.toFixed(1)})`;
+
+    // 检查是否到达目标
+    const target = state.targets[currentTarget];
+    const dist = Math.sqrt(
+      Math.pow(state.currentPos.x - parseFloat(target.x), 2) +
+      Math.pow(state.currentPos.y - parseFloat(target.y), 2)
+    );
+    document.getElementById('goal-dist').textContent = dist.toFixed(1) + 'm';
+
+    if (dist < 0.5) {
+      target.status = 'done';
+      currentTarget++;
+      if (currentTarget < state.targets.length) {
+        state.targets[currentTarget].status = 'active';
+      }
+      renderTargets();
+    }
+
+    if (state.view === 'map') drawMap();
+  }, 500);
+
+  fetch('/api/navigation/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targets: state.targets })
+  }).catch(() => {});
+}
+
+function stopNavigation() {
+  state.navigating = false;
+  document.getElementById('btn-start-nav').disabled = false;
+  document.getElementById('btn-stop-nav').disabled = true;
+  document.getElementById('nav-status').textContent = '导航: 已停止';
+  document.getElementById('nav-status').classList.remove('active');
+  state.targets.forEach(t => { if (t.status === 'active') t.status = 'pending'; });
+  renderTargets();
+  fetch('/api/navigation/stop', { method: 'POST' }).catch(() => {});
+}
+
+// ===== 地图绘制 =====
+function drawMap() {
+  const canvas = document.getElementById('map-canvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = canvas.clientWidth;
+  const h = canvas.height = canvas.clientHeight;
+
+  // 背景
+  ctx.fillStyle = '#0d1b2a';
+  ctx.fillRect(0, 0, w, h);
+
+  // 网格
+  ctx.strokeStyle = '#1a2d40';
+  ctx.lineWidth = 1;
+  const gridSize = 40;
+  for (let x = 0; x < w; x += gridSize) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+  for (let y = 0; y < h; y += gridSize) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  // 坐标轴
+  ctx.strokeStyle = '#1e3a5f';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
+
+  // 绘制障碍物（模拟）
+  ctx.fillStyle = 'rgba(255,82,82,0.3)';
+  const obstacles = [[-5,3,2,2], [4,-6,3,1], [-3,-4,1,3]];
+  obstacles.forEach(([x,y,w_,h_]) => {
+    ctx.fillRect(w/2 + x*40, h/2 - y*40 - h_*40, w_*40, h_*40);
+  });
+
+  // 绘制目标点
+  state.targets.forEach((t, i) => {
+    const tx = w/2 + parseFloat(t.x) * 40;
+    const ty = h/2 - parseFloat(t.y) * 40;
+    ctx.fillStyle = t.status === 'done' ? '#00e676' : t.status === 'active' ? '#ffb74d' : '#4facfe';
+    ctx.beginPath(); ctx.arc(tx, ty, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#e0e6ed';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(t.name, tx, ty - 12);
+  });
+
+  // 绘制机器人
+  const rx = w/2 + state.currentPos.x * 40;
+  const ry = h/2 - state.currentPos.y * 40;
+  ctx.fillStyle = '#00e676';
+  ctx.beginPath(); ctx.arc(rx, ry, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#0d1b2a';
+  ctx.beginPath(); ctx.arc(rx, ry, 4, 0, Math.PI * 2); ctx.fill();
+
+  // 机器人朝向
+  ctx.strokeStyle = '#00e676';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(rx, ry);
+  ctx.lineTo(rx + 15 * Math.cos(state.currentPos.theta), ry - 15 * Math.sin(state.currentPos.theta));
+  ctx.stroke();
+}
+
+// ===== 自动识别结果更新 =====
+function updateDetectionUI(data) {
+  const emojiMap = {
+    '电子产品':'📱','食品':'🍞','服装':'👕','医疗器械':'💊',
+    '化工原料':'⚗️','机械零件':'⚙️','文具用品':'✏️','建材':'🧱'
+  };
+
+  if (data.detections && data.detections.length > 0) {
+    const det = data.detections[0]; // 显示第一个检测结果
+    document.getElementById('fruit-emoji').textContent = emojiMap[det.category] || '📦';
+    document.getElementById('fruit-name').textContent = det.category || '未知';
+    document.getElementById('det-count').textContent = data.detections.length;
+    document.getElementById('infer-time').textContent = (data.infer_time || 0) + 'ms';
+
+    // 绘制检测框
+    drawDetections(data.detections);
+  }
+}
+
+function drawDetections(detections) {
+  const canvas = document.getElementById('detection-canvas');
+  const img = document.getElementById('video-img');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = img.clientWidth;
+  canvas.height = img.clientHeight;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  detections.forEach(det => {
+    const scaleX = canvas.width / (det.img_width || 320);
+    const scaleY = canvas.height / (det.img_height || 240);
+
+    const x = det.x * scaleX;
+    const y = det.y * scaleY;
+    const w = det.w * scaleX;
+    const h = det.h * scaleY;
+
+    // 绘制边界框
+    ctx.strokeStyle = '#00e676';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+
+    // 绘制标签
+    const label = `${det.category} ${(det.confidence * 100).toFixed(0)}%`;
+    ctx.font = 'bold 12px sans-serif';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(x, y - 20, tw + 8, 20);
+    ctx.fillStyle = '#00e676';
+    ctx.fillText(label, x + 4, y - 5);
+  });
+}
+
+// ===== 状态轮询 =====
+function pollStatus() {
+  fetch("/api/status").then(r => r.json()).then(data => {
+    // 更新连接状态
+    document.getElementById("conn-dot").className = "status-dot live";
+    document.getElementById("conn-text").textContent = "已连接";
+
+    // 更新雷达状态
+    if (data.lidar_connected) {
+      document.getElementById("lidar-status").textContent = "雷达: 在线";
+      document.getElementById("lidar-status").classList.add("active");
+    }
+
+    // 更新识别结果
+    if (data.fruit_name && data.fruit_name !== "--") {
+      updateDetectionUI(data);
+    }
+
+    // 更新盘点统计
+    if (data.inventory && data.inventory.length > 0) {
+      const tbody = document.getElementById("inv-body");
+      tbody.innerHTML = "";
+      let total = 0;
+      data.inventory.forEach(r => {
+        tbody.innerHTML += "<tr><td>" + (r.color||"-") + "</td><td>" + (r.label||"-") + "</td><td>" + (r.category||"-") + "</td><td>" + r.count + "</td></tr>";
+        total += r.count;
+      });
+      document.getElementById("inv-summary").textContent = "共" + total + "件";
+    }
+
+    // 报警提示
+    if (data.tracking && data.alert_tag && (data.alert_tag === "易燃易爆" || data.alert_tag === "易碎品")) {
+      speak("注意，该货物是" + data.alert_tag);
+    }
+  }).catch(() => {
+    document.getElementById("conn-dot").className = "status-dot dead";
+    document.getElementById("conn-text").textContent = "未连接";
+  });
+}
+
+setInterval(pollStatus, 500);
+
+// ===== 语音 =====
+function speak(text) {
+  try { const u = new SpeechSynthesisUtterance(text); u.lang = "zh-CN"; u.rate = 0.9; speechSynthesis.speak(u); } catch(e) {}
+}
+
+// ===== 盘点重置 =====
+function resetInventory() {
+  const tbody = document.getElementById("inv-body");
+  const rows = tbody.querySelectorAll("tr");
+  if (rows.length) {
+    const ts = new Date();
+    const stamp = ts.getFullYear() + String(ts.getMonth()+1).padStart(2,"0") + String(ts.getDate()).padStart(2,"0") + "_" + String(ts.getHours()).padStart(2,"0") + String(ts.getMinutes()).padStart(2,"0");
+    let csv = "﻿颜色,印刷标识,货物品类,数量\n";
+    rows.forEach(tr => {
+      const tds = tr.querySelectorAll("td");
+      csv += [tds[0].textContent, tds[1].textContent, tds[2].textContent, tds[3].textContent].join(",") + "\n";
+    });
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "盘点统计_" + stamp + ".csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  fetch("/api/inventory/reset", { method: "POST" }).then(() => {
+    tbody.innerHTML = "";
+    document.getElementById("inv-summary").textContent = "";
+  });
+}
+
+// ===== 环境信息 =====
+function updateEnv() {
+  const now = new Date();
+  document.getElementById("wx-date").textContent = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0");
+  document.getElementById("wx-time").textContent = String(now.getHours()).padStart(2,"0") + ":" + String(now.getMinutes()).padStart(2,"0") + ":" + String(now.getSeconds()).padStart(2,"0");
+  document.getElementById("wx-temp").textContent = (24 + Math.random()).toFixed(1) + "°C";
+  document.getElementById("wx-humidity").textContent = (55 + Math.floor(Math.random()*10)) + "%";
+}
+setInterval(updateEnv, 1000);
+updateEnv();
+
+// 初始化地图
+drawMap();
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+p_l: 15
+i_l: 1.1
+d_l: 0
+p_r: 15
+i_r: 1.1
+d_r: 0
+v_target: 460
+p_position: 440
+d_position: 220
+p_gyroz: 0.15
+d_gyroz: -0.005
+duty_left_press: 500
+duty_right_press: 500
+overspeed: 40
+~
+
+
+电压 11.5左右
