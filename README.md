@@ -31,19 +31,17 @@ warehouse-vision-system/
 │   │   └── gmapping.cpp        # GMapping 算法实现
 │   ├── navigation/             # 自主导航模块
 │   │   ├── nav_core.hpp        # 导航核心接口
-│   │   ├── path_planner.hpp    # 路径规划器
-│   │   └── obstacle_avoid.hpp  # 动态避障
+│   │   └── nav_core.cpp        # 导航核心实现
 │   ├── vision/                 # 视觉识别模块
 │   │   ├── yolo_detector.hpp   # YOLOv5s 检测器
 │   │   └── yolo_detector.cpp   # YOLOv5s 实现
 │   ├── CMakeLists.txt          # CMake 交叉编译配置
-│   ├── build.sh                # 一键编译 + scp部署脚本
-│   └── pub.cpp                 # 主程序入口
+│   ├── pub.cpp                 # 主程序入口
+│   └── zf_driver_udp.*         # UDP 驱动
 ├── server/                     # PC端服务 (Ubuntu)
 │   ├── app.py                  # Flask Web主程序
-│   ├── yolo_infer.py           # YOLO推理服务
-│   ├── slam_server.py          # SLAM建图服务
-│   ├── nav_server.py           # 导航控制服务
+│   ├── tracker.py              # CSRT 跟踪算法
+│   ├── udp_listener.py         # UDP 监听
 │   └── requirements.txt        # Python依赖
 ├── frontend/                   # 浏览器前端
 │   └── index.html              # 可视化页面 (含地图/导航界面)
